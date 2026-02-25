@@ -27,12 +27,14 @@ cc_library_shared {
         "libaudiohal@7.0",
         "libaudiohal@7.1",
         "libaudiohal@aidl",
+        "libaudiohal@local",
     ],
 
     shared_libs: [
         "audioclient-types-aidl-cpp",
         "libaudiofoundation",
         "libbinder_ndk",
+        "libcutils",
         "libdl",
         "libhidlbase",
         "liblog",

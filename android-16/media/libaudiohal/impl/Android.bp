@@ -243,6 +243,19 @@ cc_library_shared {
     ],
 }
 
+cc_library_shared {
+    name: "libaudiohal@local",
+    defaults: [
+        "libaudiohal_default",
+    ],
+    srcs: [
+        "DevicesFactoryHalEntry.cpp",
+        "DevicesFactoryHalLocal.cpp",
+        "DeviceHalLocal.cpp",
+        "StreamHalLocal.cpp",
+    ],
+}
+
 filegroup {
     name: "core_audio_hal_aidl_src_files",
     srcs: [

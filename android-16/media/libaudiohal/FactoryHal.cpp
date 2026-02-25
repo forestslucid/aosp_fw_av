@@ -26,6 +26,7 @@
 
 #include <android/binder_manager.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
+#include <cutils/properties.h>
 #include <hidl/ServiceManagement.h>
 #include <hidl/Status.h>
 #include <utils/Log.h>
@@ -146,9 +147,65 @@ bool hasHalService(const InterfaceName& interface, const AudioHalVersionInfo& ve
     }
 }
 
+/** Check if LOCAL (passthrough) mode is forced via system property. */
+bool shouldUseLocalHal() {
+    char value[PROPERTY_VALUE_MAX] = {0};
+    property_get("ro.audio.hal.force_local", value, "false");
+    if (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) {
+        return true;
+    }
+    property_get("persist.audio.hal.local.enabled", value, "false");
+    return strcmp(value, "true") == 0 || strcmp(value, "1") == 0;
+}
+
+/**
+ * Try to load the LOCAL (passthrough) audio HAL library.
+ * Returns true if the library was loaded successfully.
+ */
+bool createLocalHalService(bool isDevice, void** rawInterface) {
+    const std::string libName = "libaudiohal@local.so";
+    const std::string factoryFunctionName =
+            isDevice ? "createIDevicesFactory" : "createIEffectsFactory";
+    constexpr int dlMode = RTLD_LAZY;
+    void* handle = nullptr;
+    dlerror(); // clear
+    handle = dlopen(libName.c_str(), dlMode);
+    if (handle == nullptr) {
+        const char* error = dlerror();
+        ALOGE("Failed to dlopen %s: %s", libName.c_str(),
+                error != nullptr ? error : "unknown error");
+        return false;
+    }
+    void* (*factoryFunction)();
+    *(void **)(&factoryFunction) = dlsym(handle, factoryFunctionName.c_str());
+    if (!factoryFunction) {
+        const char* error = dlerror();
+        ALOGE("Factory function %s not found in library %s: %s",
+                factoryFunctionName.c_str(), libName.c_str(),
+                error != nullptr ? error : "unknown error");
+        dlclose(handle);
+        return false;
+    }
+    *rawInterface = (*factoryFunction)();
+    ALOGW_IF(!*rawInterface, "Factory function %s from %s returned nullptr",
+            factoryFunctionName.c_str(), libName.c_str());
+    return *rawInterface != nullptr;
+}
+
 }  // namespace
 
 void *createPreferredImpl(bool isDevice) {
+    // Check if LOCAL (passthrough) mode is forced via system property.
+    // Only applies to the device HAL; effects still use AIDL/HIDL.
+    if (isDevice && shouldUseLocalHal()) {
+        void* rawInterface = nullptr;
+        if (createLocalHalService(true, &rawInterface)) {
+            ALOGI("Using LOCAL (passthrough) audio HAL (forced by system property)");
+            return rawInterface;
+        }
+        ALOGE("LOCAL audio HAL forced but failed to load, falling through to AIDL/HIDL");
+    }
+
     auto findMostRecentVersion = [](const auto& iMap) {
         return std::find_if(sAudioHALVersions.begin(), sAudioHALVersions.end(),
                             [iMap](const auto& v) {
@@ -174,12 +231,23 @@ void *createPreferredImpl(bool isDevice) {
                   ifaceVersionIt->toString().c_str(), siblingVersionIt->toString().c_str());
         }
     } else {
-        ALOGE("Found no HAL version, main(%s) %s %s!", isDevice ? "Device" : "Effect",
+        ALOGW("Found no HAL version, main(%s) %s %s!", isDevice ? "Device" : "Effect",
               (ifaceVersionIt == sAudioHALVersions.end()) ? "null"
                                                           : ifaceVersionIt->toString().c_str(),
               (siblingVersionIt == sAudioHALVersions.end()) ? "null"
                                                             : siblingVersionIt->toString().c_str());
     }
+
+    // Fallback to LOCAL (passthrough) mode for device HAL when no AIDL/HIDL service is available.
+    if (isDevice) {
+        ALOGW("No AIDL/HIDL audio HAL service found, trying LOCAL (passthrough) fallback");
+        void* rawInterface = nullptr;
+        if (createLocalHalService(true, &rawInterface)) {
+            ALOGI("Using LOCAL (passthrough) audio HAL as fallback");
+            return rawInterface;
+        }
+    }
+
     return nullptr;
 }
 
