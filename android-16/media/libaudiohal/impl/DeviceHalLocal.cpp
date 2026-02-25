@@ -201,7 +201,10 @@ status_t DeviceHalLocal::getAudioPort(struct audio_port_v7 *port) {
         return mDev->get_audio_port_v7(mDev, port);
     }
     struct audio_port audioPort = {};
-    audio_populate_audio_port(port, &audioPort);
+    if (!audio_populate_audio_port(port, &audioPort)) {
+        ALOGE("Failed to populate legacy audio port from audio_port_v7");
+        return BAD_VALUE;
+    }
     status_t status = getAudioPort(&audioPort);
     if (status == NO_ERROR) {
         audio_populate_audio_port_v7(&audioPort, port);
