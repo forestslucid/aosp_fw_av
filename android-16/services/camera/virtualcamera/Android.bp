@@ -1,0 +1,93 @@
+package {
+    default_team: "trendy_team_virtual_device_framework",
+    // See: http://go/android-license-faq
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+cc_defaults {
+    name: "libvirtualcamera_defaults",
+    shared_libs: [
+        "android.companion.virtualdevice.flags-aconfig-cc",
+        "android.hardware.common-V2-ndk",
+        "android.hardware.common.fmq-V1-ndk",
+        "libEGL",
+        "libGLESv2",
+        "libGLESv3",
+        "libbase",
+        "libbinder",
+        "libbinder_ndk",
+        "libcamera_metadata",
+        "libcutils",
+        "libexif",
+        "libfmq",
+        "libgui",
+        "libjpeg",
+        "liblog",
+        "libnativewindow",
+        "libui",
+        "libutils",
+    ],
+    static_libs: [
+        "android.hardware.camera.common-V1-ndk",
+        "android.hardware.camera.common@1.0-helper",
+        "android.hardware.camera.device-V2-ndk",
+        "android.hardware.camera.metadata-V2-ndk",
+        "android.hardware.camera.provider-V2-ndk",
+        "libaidlcommonsupport",
+        "virtual_camera_service_aidl-ndk",
+    ],
+    cflags: [
+        "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
+        "-Wall",
+        "-Werror",
+        "-Wformat",
+        "-Wthread-safety",
+    ],
+    cpp_std: "c++20",
+}
+
+cc_library_static {
+    name: "libvirtualcamera_utils",
+    srcs: [
+        "util/EglDisplayContext.cc",
+        "util/EglFramebuffer.cc",
+        "util/EglProgram.cc",
+        "util/EglSurfaceTexture.cc",
+        "util/EglUtil.cc",
+        "util/JpegUtil.cc",
+        "util/MetadataUtil.cc",
+        "util/Permissions.cc",
+        "util/Util.cc",
+    ],
+    defaults: [
+        "libvirtualcamera_defaults",
+    ],
+}
+
+cc_library_static {
+    name: "libvirtualcamera",
+    srcs: [
+        "*.cc",
+    ],
+    defaults: [
+        "libvirtualcamera_defaults",
+    ],
+    static_libs: [
+        "libvirtualcamera_utils",
+    ],
+    export_include_dirs: ["."],
+    min_sdk_version: "current",
+}
+
+cc_binary {
+    name: "virtual_camera",
+    srcs: ["main.cc"],
+    defaults: [
+        "libvirtualcamera_defaults",
+    ],
+    static_libs: [
+        "libvirtualcamera",
+        "libvirtualcamera_utils",
+    ],
+    init_rc: ["virtual_camera.hal.rc"],
+}

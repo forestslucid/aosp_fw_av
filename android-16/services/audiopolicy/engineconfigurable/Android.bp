@@ -1,0 +1,79 @@
+package {
+    default_team: "trendy_team_android_media_audio_framework",
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "frameworks_av_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["frameworks_av_license"],
+}
+
+cc_library_headers {
+    name: "libaudiopolicyengineconfigurable_interface_headers",
+    host_supported: true,
+    export_include_dirs: ["interface"],
+}
+
+cc_library_shared {
+    name: "libaudiopolicyengineconfigurable",
+    export_include_dirs: ["include"],
+    srcs: [
+        "src/Engine.cpp",
+        "src/EngineInstance.cpp",
+        "src/InputSource.cpp",
+        "src/Stream.cpp",
+    ],
+    cflags: [
+        "-DENABLE_CAP_AIDL_HYBRID_MODE",
+        "-Wall",
+        "-Werror",
+        "-Wextra",
+    ] + select(release_flag("RELEASE_HARDWARE_AUDIO_USE_CAP_AIDL"), {
+        true: [],
+        default: ["-DDISABLE_CAP_AIDL"],
+    }),
+    local_include_dirs: ["include"],
+    header_libs: [
+        "libaudiopolicycommon",
+        "libaudiopolicyengine_interface_headers",
+        "libaudiopolicyengineconfigurable_interface_headers",
+        "libbase_headers",
+    ],
+    static_libs: [
+        "libaudiopolicycapengine_config",
+        "libaudiopolicyengine_common",
+        "libaudiopolicyengine_config",
+        "libaudiopolicyengineconfigurable_pfwwrapper",
+    ],
+    shared_libs: [
+        "com.android.media.audioserver-aconfig-cc",
+        "libaudio_aidl_conversion_common_cpp",
+        "libaudiofoundation",
+        "libaudiopolicy",
+        "libaudiopolicycomponents",
+        "libbase",
+        "libcutils",
+        "liblog",
+        "libmedia_helper",
+        "libparameter",
+        "libutils",
+        "libxml2",
+    ],
+    defaults: [
+        "aconfig_lib_cc_static_link.defaults",
+        "latest_android_media_audio_common_types_cpp_shared",
+    ],
+    required: [
+    ] + select(release_flag("RELEASE_HARDWARE_AUDIO_USE_CAP_AIDL"), {
+        true: [
+            "CapClass.xml",
+            "CapProductStrategies.xml",
+            "CapSubsystem-CommonTypes.xml",
+            "CapSubsystem.xml",
+            "ParameterFrameworkConfigurationCap.xml",
+        ],
+        default: [
+            // empty, provisionned by the vendor
+        ],
+    }),
+}

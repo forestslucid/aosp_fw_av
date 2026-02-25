@@ -1,0 +1,282 @@
+package: "com.android.internal.camera.flags"
+container: "system"
+
+flag {
+    namespace: "camera_platform"
+    name: "camera_heif_gainmap"
+    is_exported: true
+    description: "Extend HEIC/HEIF still capture with HDR gainmap"
+    bug: "362608343"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "camera_hsum_permission"
+    is_exported: true
+    description: "Camera access by headless system user"
+    bug: "273539631"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "concert_mode"
+    is_exported: true
+    description: "Introduces a new concert mode camera extension type"
+    bug: "297083874"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "feature_combination_query"
+    is_exported: true
+    description: "Query feature combination support and session specific characteristics"
+    bug: "309627704"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "camera_manual_flash_strength_control"
+    is_exported: true
+    description: "Flash brightness level control in manual flash mode"
+    bug: "238348881"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "inject_session_params"
+    description: "Enable session parameter injection via reconfiguration"
+    bug: "308984721"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "camera_ae_mode_low_light_boost"
+    is_exported: true
+    description: "An AE mode that enables increased brightening in low light scenes"
+    bug: "312803148"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "multiresolution_imagereader_usage_config"
+    description: "Enable creating MultiResolutionImageReader with usage flag configuration"
+    bug: "301588215"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "camera_extensions_characteristics_get"
+    is_exported: true
+    description: "Enable get extension specific camera characteristics API"
+    bug: "280649914"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "return_buffers_outside_locks"
+    description: "Enable returning graphics buffers to buffer queues without holding the in-flight mutex"
+    bug: "315526878"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "camera_device_setup"
+    is_exported: true
+    description: "Create an intermediate Camera Device class for limited CameraDevice access."
+    bug: "320741775"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "camera_privacy_allowlist"
+    is_exported: true
+    description: "Allowlisting to exempt safety-relevant cameras from privacy control for automotive devices"
+    bug: "282814430"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "extension_10_bit"
+    is_exported: true
+    description: "Enables 10-bit support in the camera extensions."
+    bug: "316375635"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "single_thread_executor_naming"
+    description: "Set the device executor thread name."
+    bug: "359709863"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "analytics_24q3"
+    description: "Miscellaneous camera platform metrics for 24Q3"
+    bug: "332557570"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "multi_res_raw_reprocessing"
+    description: "Allow multi-resolution raw reprocessing without reprocessing capability"
+    bug: "336922859"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "api1_release_binderlock_before_cameraservice_disconnect"
+    description: "Drop mSerializationLock in Camera1 client when calling into CameraService"
+    bug: "351778072"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "bump_preview_frame_space_priority"
+    description: "Increase the PreviewFrameSpacer thread priority"
+    bug: "355665306"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "dumpsys_request_stream_ids"
+    description: "Add stream id information to last request dumpsys"
+    bug: "357913929"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "enable_hal_abort_from_cameraservicewatchdog"
+    description: "Enable CameraServiceWatchdog to abort camera HAL to generate HAL tombstones"
+    bug: "349652177"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "enable_stream_reconfiguration_for_unchanged_streams"
+    description: "Enable stream reconfiguration for unchanged streams"
+    bug: "341740105"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "data_delivery_permission_checks"
+    description: "Pass the full AttributionSource chain to PermissionChecker for data delivery"
+    bug: "190657833"
+    is_fixed_read_only: true
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "depth_jpeg_extensions"
+    description: "Add Depth Jpeg extension output support"
+    bug: "362788689"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "mirror_mode_shared_surfaces"
+    is_exported: true
+    description: "Support setting and getting mirror mode for shared surfaces"
+    bug: "298899993"
+}
+
+flag {
+    namespace: "camera_platform"
+    is_exported: true
+    name: "multiresolution_imagereader_usage_public"
+    description: "Make constructor for MultiResolutionImageReader with usage public"
+    bug: "338621560"
+}
+
+flag {
+    namespace: "camera_platform"
+    is_exported: true
+    name: "color_temperature"
+    description: "Add keys to manually set color temperature and color tint"
+    bug: "359409044"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "night_mode_indicator"
+    is_exported: true
+    description: "Indicates when to activate Night Mode Camera Extension"
+    bug: "335902696"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "zoom_method"
+    is_exported: true
+    description: "Gives apps explicit control on reflects zoom via ZOOM_RATIO capture result"
+    bug: "350076823"
+}
+
+flag {
+    namespace: "camera_platform"
+    is_exported: true
+    name: "ae_priority"
+    description: "Add AE priority modes"
+    bug: "359944765"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "feature_combination_baklava"
+    description: "Add new feature combination query version for Baklava"
+    bug: "370778206"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "camera_multi_client"
+    is_exported: true
+    description: "add new feature to allow multiple clients to access the camera in shared mode"
+    bug: "265196098"
+    metadata {
+        purpose: PURPOSE_FEATURE
+    }
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "fmq_metadata"
+    description: "Allow CameraMetadata transfer for ndk / sdk clients."
+    bug: "362791857"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "desktop_effects"
+    description: "Applies system controlled effects targetting video conferencing"
+    bug: "376797335"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "metadata_resize_fix"
+    description: "metadata resize during update needs to consider existing entry"
+    bug: "379388099"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}

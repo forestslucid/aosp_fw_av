@@ -1,0 +1,84 @@
+package {
+    default_team: "trendy_team_android_media_audio_framework",
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "frameworks_av_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["frameworks_av_license"],
+}
+
+cc_library {
+    name: "libaudiopolicycomponents",
+
+    defaults: [
+        "latest_android_media_audio_common_types_cpp_shared",
+    ],
+
+    srcs: [
+        "src/AudioCollections.cpp",
+        "src/AudioInputDescriptor.cpp",
+        "src/AudioOutputDescriptor.cpp",
+        "src/AudioPatch.cpp",
+        "src/AudioPolicyConfig.cpp",
+        "src/AudioPolicyMix.cpp",
+        "src/AudioProfileVectorHelper.cpp",
+        "src/AudioRoute.cpp",
+        "src/ClientDescriptor.cpp",
+        "src/DeviceDescriptor.cpp",
+        "src/EffectDescriptor.cpp",
+        "src/HwModule.cpp",
+        "src/IOProfile.cpp",
+        "src/PolicyAudioPort.cpp",
+        "src/PreferredMixerAttributesInfo.cpp",
+        "src/Serializer.cpp",
+        "src/SoundTriggerSession.cpp",
+        "src/TypeConverter.cpp",
+    ],
+    shared_libs: [
+        "android.media.audiopolicy-aconfig-cc",
+        "audioclient-types-aidl-cpp",
+        "audiopolicy-types-aidl-cpp",
+        "com.android.media.audio-aconfig-cc",
+        "com.android.media.audioserver-aconfig-cc",
+        "libaconfig_storage_read_api_cc",
+        "libaudioclient_aidl_conversion",
+        "libaudiofoundation",
+        "libaudiopolicy",
+        "libaudioutils",
+        "libbase",
+        "libcutils",
+        "libhidlbase",
+        "liblog",
+        "libmedia",
+        "libmedia_helper",
+        "libutils",
+        "libxml2",
+        "server_configurable_flags",
+    ],
+    export_shared_lib_headers: [
+        "libaudiofoundation",
+        "libmedia",
+        "libmedia_helper",
+    ],
+    header_libs: [
+        "libaudiopolicycommon",
+        "libaudiopolicymanager_interface_headers",
+    ],
+    export_header_lib_headers: ["libaudiopolicycommon"],
+
+    include_dirs: [
+        "frameworks/av/services/audiopolicy",
+    ],
+
+    export_include_dirs: ["include"],
+
+    cflags: [
+        "-DENABLE_CAP_AIDL_HYBRID_MODE",
+        "-Wall",
+        "-Werror",
+    ] + select(release_flag("RELEASE_HARDWARE_AUDIO_USE_CAP_AIDL"), {
+        true: [],
+        default: ["-DDISABLE_CAP_AIDL"],
+    }),
+}
