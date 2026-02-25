@@ -31,7 +31,7 @@ DeviceHalLocal::DeviceHalLocal(audio_hw_device_t *dev)
 DeviceHalLocal::~DeviceHalLocal() {
     int status = audio_hw_device_close(mDev);
     ALOGW_IF(status, "Error closing audio hw device %p: %s", mDev, strerror(-status));
-    mDev = 0;
+    mDev = nullptr;
 }
 
 status_t DeviceHalLocal::getAudioPorts(

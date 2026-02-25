@@ -40,7 +40,7 @@ StreamHalLocal::StreamHalLocal(audio_stream_t *stream, sp<DeviceHalLocal> device
 }
 
 StreamHalLocal::~StreamHalLocal() {
-    mStream = 0;
+    mStream = nullptr;
     mDevice.clear();
 }
 
@@ -115,7 +115,7 @@ StreamOutHalLocal::StreamOutHalLocal(audio_stream_out_t *stream, sp<DeviceHalLoc
 StreamOutHalLocal::~StreamOutHalLocal() {
     mCallback.clear();
     mDevice->closeOutputStream(mStream);
-    mStream = 0;
+    mStream = nullptr;
 }
 
 status_t StreamOutHalLocal::getFrameSize(size_t *size) {
@@ -174,9 +174,9 @@ status_t StreamOutHalLocal::setCallback(wp<StreamOutHalInterfaceCallback> callba
 int StreamOutHalLocal::asyncCallback(stream_callback_event_t event, void*, void *cookie) {
     wp<StreamOutHalLocal> weakSelf(static_cast<StreamOutHalLocal*>(cookie));
     sp<StreamOutHalLocal> self = weakSelf.promote();
-    if (self == 0) return 0;
+    if (self == nullptr) return 0;
     sp<StreamOutHalInterfaceCallback> callback = self->mCallback.promote();
-    if (callback == 0) return 0;
+    if (callback == nullptr) return 0;
     ALOGV("asyncCallback() event %d", event);
     switch (event) {
         case STREAM_CBK_EVENT_WRITE_READY:
@@ -377,7 +377,7 @@ StreamInHalLocal::StreamInHalLocal(audio_stream_in_t *stream, sp<DeviceHalLocal>
 
 StreamInHalLocal::~StreamInHalLocal() {
     mDevice->closeInputStream(mStream);
-    mStream = 0;
+    mStream = nullptr;
 }
 
 status_t StreamInHalLocal::getFrameSize(size_t *size) {
