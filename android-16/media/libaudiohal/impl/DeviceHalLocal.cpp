@@ -275,9 +275,6 @@ status_t DeviceHalLocal::setSimulateDeviceConnections(bool enabled __unused) {
 }
 
 error::Result<audio_hw_sync_t> DeviceHalLocal::getHwAvSync() {
-    if (mDev->get_audio_hw_sync != NULL) {
-        return mDev->get_audio_hw_sync(mDev);
-    }
     return base::unexpected(INVALID_OPERATION);
 }
 
