@@ -10,7 +10,8 @@
 6. [构建系统集成](#6-构建系统集成)
 7. [工厂加载机制](#7-工厂加载机制)
 8. [使用指南](#8-使用指南)
-9. [局限性与后续工作](#9-局限性与后续工作)
+9. [编译替换目标](#9-编译替换目标)
+10. [局限性与后续工作](#10-局限性与后续工作)
 
 ---
 
@@ -827,9 +828,152 @@ adb shell tinyplay /data/local/tmp/record.wav
 
 ---
 
-## 9. 局限性与后续工作
+## 9. 编译替换目标
 
-### 9.1 已知局限性
+本节列出了实现 Local/Passthrough 模式所需编译和替换的所有模块，以及在设备上进行替换的完整操作流程。
+
+### 9.1 需要编译的模块
+
+| 模块名 | 类型 | 输出文件 | 变更说明 |
+|-------|------|---------|---------|
+| `libaudiohal` | cc_library_shared | `libaudiohal.so` | 修改了 `FactoryHal.cpp`（新增 LOCAL 模式加载逻辑）；`Android.bp` 新增 `libaudiohal@local` 依赖和 `libcutils` 依赖 |
+| `libaudiohal@local` | cc_library_shared | `libaudiohal@local.so` | **新增模块**：包含 `DevicesFactoryHalLocal`、`DeviceHalLocal`、`StreamHalLocal` 的完整实现 |
+
+### 9.2 编译命令
+
+在 AOSP 源码根目录下执行：
+
+```bash
+# 初始化编译环境（如尚未执行）
+source build/envsetup.sh
+lunch <your_target>   # 例如 lunch aosp_arm64-userdebug
+
+# 方法 1：使用 make 编译指定模块
+make libaudiohal libaudiohal@local
+
+# 方法 2：进入 frameworks/av/media/libaudiohal 目录后使用 mm
+cd frameworks/av/media/libaudiohal
+mm
+
+# 方法 3：在任意目录使用 mmm 指定路径
+mmm frameworks/av/media/libaudiohal
+```
+
+> **注意**：`mm` 和 `mmm` 会编译该目录下的所有模块（包含 `impl/` 子目录），因此 `libaudiohal` 和 `libaudiohal@local` 会一并编译。
+
+### 9.3 编译产物路径
+
+编译完成后，产物位于 `$ANDROID_PRODUCT_OUT` 目录下：
+
+| 产物文件 | 64 位路径 | 32 位路径 |
+|---------|----------|----------|
+| `libaudiohal.so` | `$OUT/system/lib64/libaudiohal.so` | `$OUT/system/lib/libaudiohal.so` |
+| `libaudiohal@local.so` | `$OUT/system/lib64/libaudiohal@local.so` | `$OUT/system/lib/libaudiohal@local.so` |
+
+> 其中 `$OUT` 等价于 `$ANDROID_PRODUCT_OUT`，例如 `out/target/product/<device_name>`。
+
+### 9.4 设备端替换流程
+
+#### 步骤 1：将编译产物推送到设备
+
+```bash
+# 获取 root 权限并挂载 system 分区为可写
+adb root
+adb remount
+
+# 推送 64 位库（大多数现代设备需要）
+adb push $OUT/system/lib64/libaudiohal.so /system/lib64/
+adb push $OUT/system/lib64/libaudiohal@local.so /system/lib64/
+
+# 如果设备同时使用 32 位库，也需要推送
+adb push $OUT/system/lib/libaudiohal.so /system/lib/
+adb push $OUT/system/lib/libaudiohal@local.so /system/lib/
+```
+
+#### 步骤 2：设定系统属性启用 LOCAL 模式
+
+```bash
+# 使用持久化属性（重启后保留）
+adb shell setprop persist.audio.hal.local.enabled true
+```
+
+#### 步骤 3：重启 audioserver 使修改生效
+
+```bash
+# 方法 1：仅重启 audioserver 进程（推荐，速度快）
+adb shell killall audioserver
+
+# 方法 2：完整重启设备（更可靠）
+adb reboot
+```
+
+#### 步骤 4：验证替换成功
+
+```bash
+# 确认库文件已更新（检查时间戳和大小）
+adb shell ls -la /system/lib64/libaudiohal.so
+adb shell ls -la /system/lib64/libaudiohal@local.so
+
+# 确认 LOCAL 模式已加载
+adb logcat -s FactoryHal | grep -i local
+```
+
+预期日志输出：
+```
+I FactoryHal: Using LOCAL (passthrough) audio HAL (forced by system property)
+```
+
+### 9.5 完整操作示例
+
+以下是从编译到验证的完整流程示例：
+
+```bash
+# === 编译阶段 ===
+source build/envsetup.sh
+lunch aosp_arm64-userdebug
+make libaudiohal libaudiohal@local
+
+# === 替换阶段 ===
+adb root
+adb remount
+adb push $OUT/system/lib64/libaudiohal.so /system/lib64/
+adb push $OUT/system/lib64/libaudiohal@local.so /system/lib64/
+
+# === 启用阶段 ===
+adb shell setprop persist.audio.hal.local.enabled true
+adb shell killall audioserver
+
+# === 验证阶段 ===
+# 检查日志确认 LOCAL 模式已激活
+adb logcat -s FactoryHal | grep -i local
+
+# 播放测试
+adb push test.wav /data/local/tmp/
+adb shell tinyplay /data/local/tmp/test.wav
+
+# 录音测试
+adb shell tinycap /data/local/tmp/record.wav -D 0 -d 0 -c 2 -r 48000 -b 16 -T 5
+```
+
+### 9.6 模块依赖关系
+
+```
+audioserver (进程)
+    └── libaudiohal.so              ← 需要替换（修改了 FactoryHal.cpp）
+            ├── dlopen("libaudiohal@aidl.so")   ← 无需替换
+            ├── dlopen("libaudiohal@7.1.so")    ← 无需替换
+            ├── dlopen("libaudiohal@7.0.so")    ← 无需替换
+            ├── dlopen("libaudiohal@6.0.so")    ← 无需替换
+            └── dlopen("libaudiohal@local.so")  ← 需要替换（新增模块）
+```
+
+> **最小替换集**：只需要替换 `libaudiohal.so` 和 `libaudiohal@local.so` 两个文件即可完成 Local/Passthrough 模式的部署，无需修改其他系统组件。
+
+---
+
+## 10. 局限性与后续工作
+
+### 10.1 已知局限性
 
 1. **无音效支持**：LOCAL 模式下的流不支持 `addEffect()` / `removeEffect()`（会触发 `LOG_ALWAYS_FATAL`）。如果需要音效，仍需要 AIDL/HIDL 音效 HAL 服务。
 
@@ -841,7 +985,7 @@ adb shell tinyplay /data/local/tmp/record.wav
 
 5. **HAL 版本报告**：`getHalVersion()` 返回 `HIDL 0.0`，某些依赖版本号的逻辑可能需要适配。
 
-### 9.2 后续工作
+### 10.2 后续工作
 
 1. **音效 HAL LOCAL 模式**：如需在 LOCAL 模式下使用音效，需要实现 `EffectsFactoryHalLocal` 和 `EffectHalLocal`。
 
