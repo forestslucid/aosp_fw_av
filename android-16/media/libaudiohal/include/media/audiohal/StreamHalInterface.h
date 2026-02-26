@@ -70,6 +70,9 @@ class StreamHalInterface : public virtual RefBase
     // Put the audio hardware input/output into standby mode.
     virtual status_t standby() = 0;
 
+    // Close the stream.
+    virtual status_t close() = 0;
+
     virtual status_t dump(int fd, const Vector<String16>& args = {}) = 0;
 
     // Start a stream operating in mmap mode.

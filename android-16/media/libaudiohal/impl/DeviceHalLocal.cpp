@@ -275,9 +275,7 @@ status_t DeviceHalLocal::setSimulateDeviceConnections(bool enabled __unused) {
 }
 
 error::Result<audio_hw_sync_t> DeviceHalLocal::getHwAvSync() {
-    if (mDev->get_audio_hw_sync != NULL) {
-        return mDev->get_audio_hw_sync(mDev);
-    }
+    // audio_hw_device does not have get_audio_hw_sync in AOSP 16.
     return base::unexpected(INVALID_OPERATION);
 }
 
