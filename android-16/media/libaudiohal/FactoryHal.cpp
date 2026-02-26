@@ -238,9 +238,14 @@ void *createPreferredImpl(bool isDevice) {
                                                             : siblingVersionIt->toString().c_str());
     }
 
-    // Fallback to LOCAL (passthrough) mode for device HAL when no AIDL/HIDL service is available.
-    if (isDevice) {
-        ALOGW("No AIDL/HIDL audio HAL service found, trying LOCAL (passthrough) fallback");
+    // Fallback to LOCAL (passthrough) mode for device HAL ONLY when no AIDL/HIDL device
+    // service is discoverable at all.  When an AIDL/HIDL device service exists but the
+    // sibling (effects) service has an incompatible version, do NOT load the in-process HAL:
+    // loading a vendor HAL in-process can corrupt shared memory regions used by
+    // audio_utils_fifo (whose throttle index is backed by anonymous shared memory), causing
+    // futex_wake() to fail with EFAULT and the audioserver to abort.
+    if (isDevice && ifaceVersionIt == sAudioHALVersions.end()) {
+        ALOGW("No AIDL/HIDL audio device HAL service found, trying LOCAL (passthrough) fallback");
         void* rawInterface = nullptr;
         if (createLocalHalService(true, &rawInterface)) {
             ALOGI("Using LOCAL (passthrough) audio HAL as fallback");
