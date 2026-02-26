@@ -86,6 +86,7 @@ status_t StreamHalLocal::standby() {
 }
 
 status_t StreamHalLocal::close() {
+    // Stream cleanup is handled by the destructor.
     return OK;
 }
 
