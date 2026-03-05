@@ -85,6 +85,11 @@ status_t StreamHalLocal::standby() {
     return mStream->standby(mStream);
 }
 
+status_t StreamHalLocal::close() {
+    // Stream cleanup is handled by the destructor.
+    return OK;
+}
+
 status_t StreamHalLocal::dump(int fd, const Vector<String16>& /*args*/) {
     status_t status = mStream->dump(mStream, fd);
     mStreamPowerLog.dump(fd);

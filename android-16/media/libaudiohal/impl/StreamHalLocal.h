@@ -49,6 +49,9 @@ class StreamHalLocal : public virtual StreamHalInterface
     // Put the audio hardware input/output into standby mode.
     status_t standby() override;
 
+    // Close the stream.
+    status_t close() override;
+
     status_t dump(int fd, const Vector<String16>& args) override;
 
     // Start a stream operating in mmap mode.
