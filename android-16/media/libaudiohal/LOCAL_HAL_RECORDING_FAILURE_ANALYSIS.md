@@ -1,136 +1,127 @@
-# AOSP 16 Local HAL — Recording Failure Root-Cause Analysis
+# AOSP 16 本地 HAL — 录音失败根本原因分析
 
-## Background
+## 背景
 
-PR#3 re-introduced the LOCAL (passthrough) audio HAL for AOSP 16, adapting the
-Android 12 implementation to the expanded `DeviceHalInterface` / `StreamHalInterface`
-APIs. Three activation paths were defined in `FactoryHal.cpp`:
+PR#3 针对 AOSP 16 重新引入了本地直通（LOCAL/Passthrough）音频 HAL，将 Android 12 的实现
+适配到扩展后的 `DeviceHalInterface` / `StreamHalInterface` 接口（新增了约 20 个纯虚方法）。
+在 `FactoryHal.cpp` 中定义了三条激活路径：
 
-1. **Forced** — `ro.audio.hal.force_local=true` or `persist.audio.hal.local.enabled=true`
-2. **Normal** — AIDL/HIDL discovery (unchanged)
-3. **Fallback** — Automatic fallback when no AIDL/HIDL service is found
+1. **强制启用** — 设置系统属性 `ro.audio.hal.force_local=true` 或 `persist.audio.hal.local.enabled=true`
+2. **正常路径** — AIDL/HIDL 服务发现（保持不变）
+3. **自动降级** — 当未发现任何 AIDL/HIDL 服务时，自动回退到本地模式
 
-## The Bug: Overly Broad Fallback Condition
+## 缺陷：降级条件过于宽泛
 
-The fallback path that PR#3 introduced was:
+PR#3 引入的降级路径如下：
 
 ```cpp
-// After the AIDL/HIDL compatibility check fails for any reason:
-if (isDevice) {          // ← too broad
+// 只要 AIDL/HIDL 兼容性检查因任何原因失败，就触发：
+if (isDevice) {          // ← 条件过宽
     createLocalHalService(true, &rawInterface);
     return rawInterface;
 }
 ```
 
-The intent was "fall back only when no AIDL/HIDL service is reachable at all."
-The actual behaviour was "fall back whenever the **version-compatibility check** fails,"
-which includes cases where an AIDL/HIDL service **does** exist but one of the following
-conditions was true:
+原意是"仅当完全找不到 AIDL/HIDL 服务时才降级"，实际行为却是"只要**版本兼容性检查**失败就降级"，
+涵盖了 AIDL/HIDL 服务**确实存在**但满足以下任意一个条件的情况：
 
-| Trigger | Example |
-|---------|---------|
-| Effects HAL not present | Device has AIDL device HAL but no effects HAL |
-| Type mismatch | Device HAL is AIDL, effects HAL is HIDL 7.x |
-| Major-version mismatch | Device HAL AIDL v1, effects HAL AIDL v2 |
-| `createHalService()` runtime failure | `dlopen` / factory function failure |
+| 触发条件 | 示例 |
+|---------|------|
+| Effects HAL 不存在 | 设备有 AIDL 设备 HAL，但没有 effects HAL |
+| 类型不匹配 | 设备 HAL 是 AIDL，effects HAL 是 HIDL 7.x |
+| 主版本号不匹配 | 设备 HAL 是 AIDL v1，effects HAL 是 AIDL v2 |
+| `createHalService()` 运行时失败 | `dlopen` 或工厂函数调用失败 |
 
-The compatibility check in `createPreferredImpl()`:
+`createPreferredImpl()` 中的兼容性检查逻辑：
 
 ```cpp
 if (ifaceVersionIt != sAudioHALVersions.end() &&
     siblingVersionIt != sAudioHALVersions.end() &&
     ifaceVersionIt->getType() == siblingVersionIt->getType() &&
     ifaceVersionIt->getMajorVersion() == siblingVersionIt->getMajorVersion()) {
-    // Normal path — create AIDL/HIDL service
+    // 正常路径 — 创建 AIDL/HIDL 服务
 } else {
     ALOGW("Found no HAL version ...");
-    // falls through to the LOCAL fallback
+    // 流程进入本地 HAL 降级路径
 }
 ```
 
-When any of the four triggers above occurs, the code falls through to the LOCAL
-fallback and loads `libaudiohal@local.so` **in-process**.
+只要上述四种触发条件之一发生，代码就会落入本地 HAL 降级分支，并在进程内加载 `libaudiohal@local.so`。
 
-## Why Recording Fails
+## 为何会导致录音失败
 
-### Memory Corruption Path
+### 内存损坏路径
 
-Loading a vendor HAL in-process while AIDL/HIDL services already run elsewhere is
-unsafe on Android 16.  The sequence is:
+在 AIDL/HIDL 服务已在其他进程中运行的情况下，将厂商 HAL 加载到 audioserver 进程内部是**不安全的**。
+具体过程如下：
 
-1. `DevicesFactoryHalLocal::openDevice()` calls `hw_get_module_by_class()`.
-2. This `dlopen()`s the vendor HAL shared library inside the **audioserver** process.
-3. The vendor HAL's static initialisation and `init_check()` call `mmap()`.
-4. `mmap()` can map new anonymous pages at addresses that **alias** the existing
-   `audio_utils_fifo` throttle-index page, which is shared between the
-   RecordThread and the FastCapture thread through `MonoPipe`.
-5. The throttle-index pointer stored in the `audio_utils_fifo` writer now points to
-   the wrong (vendor HAL) page.
+1. `DevicesFactoryHalLocal::openDevice()` 调用 `hw_get_module_by_class()`。
+2. 该函数在 **audioserver 进程**内 `dlopen()` 厂商 HAL 共享库。
+3. 厂商 HAL 的静态初始化及 `init_check()` 内部会调用 `mmap()`。
+4. `mmap()` 可能将新的匿名页映射到与 `audio_utils_fifo` 节流索引页**相同的地址**——
+   该页由 RecordThread 和 FastCapture 线程通过 `MonoPipe` 共享。
+5. `audio_utils_fifo` 写端内部存储的节流索引指针此时指向厂商 HAL 占用的错误内存页。
 
-### Crash During Recording Start
+### 录音启动时崩溃
 
-When the first recording track starts:
+当第一条录音 Track 启动时：
 
-1. `RecordThread` constructor calls `AudioStreamInSource::negotiate()`, which calls
-   `mStream->getBufferSize()` and `mStream->getAudioProperties()`.  These succeed.
-2. The constructor also initialises `FastCapture` and links it to `MonoPipe`.
-3. On the first recording loop iteration, `FastCapture::onWork()` calls
-   `mPipeSink->write(mReadBuffer, mReadBufferState)`.
-4. `MonoPipe::write()` → `audio_utils_fifo_writer::release()` attempts a
-   `futex(FUTEX_WAKE_PRIVATE, …)` on the corrupted throttle address.
-5. The kernel returns `EFAULT` (errno 14, bad address).
-6. `LOG_ALWAYS_FATAL("release: unexpected err=%d errno=%d", …)` → **SIGABRT**.
+1. `RecordThread` 构造函数调用 `AudioStreamInSource::negotiate()`，
+   后者调用 `mStream->getBufferSize()` 和 `mStream->getAudioProperties()`，均成功。
+2. 构造函数同时初始化 `FastCapture` 并将其与 `MonoPipe` 连接。
+3. 录音循环第一次迭代时，`FastCapture::onWork()` 调用
+   `mPipeSink->write(mReadBuffer, mReadBufferState)`。
+4. `MonoPipe::write()` → `audio_utils_fifo_writer::release()` 在被损坏的节流地址上
+   执行 `futex(FUTEX_WAKE_PRIVATE, …)`。
+5. 内核返回 `EFAULT`（errno 14，错误地址）。
+6. `LOG_ALWAYS_FATAL("release: unexpected err=%d errno=%d", …)` → **SIGABRT**。
 
-The audioserver crashes and recording never completes.
+audioserver 进程崩溃，录音永远无法完成。
 
-### Silent Failure Path (no legacy HAL)
+### 静默失败路径（无 Legacy HAL）
 
-On devices that ship **only** AIDL HAL (no legacy `.so` in `/vendor/lib`):
+对于只搭载 AIDL HAL、`/vendor/lib` 中没有 Legacy `.so` 的设备：
 
-1. The incorrect fallback triggers `createLocalHalService()`.
-2. `DevicesFactoryHalLocal::openDevice("primary")` calls
-   `hw_get_module_by_class(AUDIO_HARDWARE_MODULE_ID, "primary", &mod)`.
-3. No legacy HAL module is present → `rc = -ENOENT`.
-4. `loadHwModule_ll()` returns `nullptr` (no device loaded).
-5. AudioFlinger has no primary device → `openInputStream()` is never reachable →
-   recording silently fails.
+1. 错误的降级条件触发 `createLocalHalService()`。
+2. `DevicesFactoryHalLocal::openDevice("primary")` 调用
+   `hw_get_module_by_class(AUDIO_HARDWARE_MODULE_ID, "primary", &mod)`。
+3. 没有 Legacy HAL 模块 → `rc = -ENOENT`。
+4. `loadHwModule_ll()` 返回 `nullptr`（未加载任何设备）。
+5. AudioFlinger 没有主设备 → `openInputStream()` 永远不可达 → 录音**静默失败**。
 
-## The Fix
+## 修复方案
 
-Restrict the LOCAL fallback to the case where the device HAL service is **truly
-absent** — i.e., `ifaceVersionIt == sAudioHALVersions.end()`:
+将本地 HAL 降级限制为设备 HAL 服务**确实不存在**的情况，
+即 `ifaceVersionIt == sAudioHALVersions.end()`：
 
 ```cpp
-// Before (PR#3 — too broad):
+// 修复前（PR#3 — 条件过宽）：
 if (isDevice) {
 
-// After (this PR — only when no device service was found):
+// 修复后（本 PR — 仅当未找到任何设备服务时）：
 if (isDevice && ifaceVersionIt == sAudioHALVersions.end()) {
 ```
 
-### Why This Is Safe
+### 为何此修复是安全的
 
-* When `ifaceVersionIt == end()`, there is no AIDL/HIDL device service at all.
-  Loading the LOCAL vendor HAL in-process is the only option; no existing
-  `audio_utils_fifo` pages will be corrupted because no AIDL streaming is active.
+* 当 `ifaceVersionIt == end()` 时，不存在任何 AIDL/HIDL 设备服务。
+  此时在进程内加载本地厂商 HAL 是唯一选择；由于没有 AIDL 流处于活动状态，
+  `audio_utils_fifo` 内存页不会受到污染。
 
-* When the device HAL **is** found but the effects HAL is missing or incompatible,
-  returning `nullptr` (no device factory) is the correct outcome.  It signals to
-  AudioFlinger that the HAL cannot be loaded and is preferable to memory corruption.
+* 当设备 HAL **确实存在**但 effects HAL 缺失或不兼容时，返回 `nullptr`（无设备工厂）
+  是正确结果。这会向 AudioFlinger 表明 HAL 无法加载，比导致内存损坏要安全得多。
 
-* The **forced** path (`ro.audio.hal.force_local=true`) is unaffected.  Users who
-  explicitly opt into LOCAL mode on a device that has a legacy HAL do so knowingly.
+* **强制启用**路径（`ro.audio.hal.force_local=true`）不受影响。明确选择 LOCAL 模式的用户
+  清楚自己在做什么。
 
-## Related Pull Requests
+## 相关 Pull Request
 
-| PR | Title | Status |
-|----|-------|--------|
-| PR#3 | Add Local/Passthrough HAL support for AOSP 16 libaudiohal | Merged |
-| PR#4 | Fix AOSP 16 libaudiohal Local/Passthrough compilation errors | Draft |
-| PR#5 | Fix audioserver SIGABRT caused by incorrect LOCAL HAL fallback in FactoryHal.cpp | Draft |
-| PR#8 | Fix local loading compatibility issues in AOSP16 (this PR) | Open |
+| PR | 标题 | 状态 |
+|----|------|------|
+| PR#3 | 为 AOSP 16 libaudiohal 新增 Local/Passthrough HAL 支持 | 已合并 |
+| PR#4 | 修复 AOSP 16 libaudiohal Local/Passthrough 编译错误 | 草稿 |
+| PR#5 | 修复 FactoryHal.cpp 中错误的 LOCAL HAL 降级导致 audioserver SIGABRT | 草稿 |
+| PR#8 | 修复 AOSP16 上本地加载兼容性问题（本 PR） | 开放 |
 
-PR#5 (still in Draft, not yet merged) proposed the identical one-line fix to the
-fallback condition and provided a brief description of the SIGABRT.  This PR
-(PR#8) independently applies that same fix, promotes it out of Draft, and adds
-the full root-cause analysis documented here.
+PR#5（仍为草稿，尚未合并）提出了与本 PR 相同的单行修复，并对 SIGABRT 做了简要说明。
+本 PR（PR#8）独立实现了同样的修复，并在此补充了完整的根本原因分析文档。
