@@ -130,6 +130,10 @@ BINDER_METHOD_ENTRY(registerPolicyMixes) \
 BINDER_METHOD_ENTRY(updatePolicyMixes) \
 BINDER_METHOD_ENTRY(setUidDeviceAffinities) \
 BINDER_METHOD_ENTRY(removeUidDeviceAffinities) \
+BINDER_METHOD_ENTRY(setAppMuteForUid) \
+BINDER_METHOD_ENTRY(isAppMutedForUid) \
+BINDER_METHOD_ENTRY(setAppMuteForPackage) \
+BINDER_METHOD_ENTRY(isAppMutedForPackage) \
 BINDER_METHOD_ENTRY(setUserIdDeviceAffinities) \
 BINDER_METHOD_ENTRY(removeUserIdDeviceAffinities) \
 BINDER_METHOD_ENTRY(startAudioSource) \
@@ -1368,6 +1372,10 @@ status_t AudioPolicyService::onTransact(
         case TRANSACTION_setA11yServicesUids:
         case TRANSACTION_setUidDeviceAffinities:
         case TRANSACTION_removeUidDeviceAffinities:
+        case TRANSACTION_setAppMuteForUid:
+        case TRANSACTION_isAppMutedForUid:
+        case TRANSACTION_setAppMuteForPackage:
+        case TRANSACTION_isAppMutedForPackage:
         case TRANSACTION_setUserIdDeviceAffinities:
         case TRANSACTION_removeUserIdDeviceAffinities:
         case TRANSACTION_getHwOffloadFormatsSupportedForBluetoothMedia:

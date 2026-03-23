@@ -310,6 +310,8 @@ public:
         virtual status_t setUidDeviceAffinities(uid_t uid,
                 const AudioDeviceTypeAddrVector& devices);
         virtual status_t removeUidDeviceAffinities(uid_t uid);
+        status_t setAppMute(uid_t uid, bool muted) override;
+        bool isAppMuted(uid_t uid) const override;
         virtual status_t setUserIdDeviceAffinities(int userId,
                 const AudioDeviceTypeAddrVector& devices);
         virtual status_t removeUserIdDeviceAffinities(int userId);
@@ -1418,6 +1420,7 @@ private:
         // Contains for devices that support absolute volume the audio attributes
         // corresponding to the streams that are driving the volume changes
         std::unordered_map<audio_devices_t, audio_attributes_t> mAbsoluteVolumeDrivingStreams;
+        std::unordered_map<uid_t, bool> mMutedApps;
 
         std::map<media::audio::common::AudioMMapPolicyType,
                 const std::vector<media::audio::common::AudioMMapPolicyInfo>> mMmapPolicyInfos;

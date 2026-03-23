@@ -303,6 +303,8 @@ public:
     virtual status_t setUidDeviceAffinities(uid_t uid, const AudioDeviceTypeAddrVector& devices)
             = 0;
     virtual status_t removeUidDeviceAffinities(uid_t uid) = 0;
+    virtual status_t setAppMute(uid_t uid, bool muted) = 0;
+    virtual bool isAppMuted(uid_t uid) const = 0;
 
     virtual status_t setUserIdDeviceAffinities(int userId,
             const AudioDeviceTypeAddrVector& devices) = 0;

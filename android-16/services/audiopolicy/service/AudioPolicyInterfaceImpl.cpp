@@ -23,8 +23,10 @@
 #include <android/content/AttributionSourceState.h>
 #include <android_media_audiopolicy.h>
 #include <android_media_audio.h>
+#include <binder/PermissionController.h>
 #include <binder/Enums.h>
 #include <com_android_media_audio.h>
+#include <cutils/multiuser.h>
 #include <cutils/properties.h>
 #include <error/expected_utils.h>
 #include <media/AidlConversion.h>
@@ -99,6 +101,19 @@ constexpr int kDefaultVirtualDeviceId = 0;
 namespace {
 constexpr auto PERMISSION_HARD_DENIED = permission::PermissionChecker::PERMISSION_HARD_DENIED;
 constexpr auto PERMISSION_GRANTED = permission::PermissionChecker::PERMISSION_GRANTED;
+
+status_t getUidForPackage(const std::string& packageName, int userId, /*inout*/uid_t& uid) {
+    PermissionController pc;
+    uid = pc.getPackageUid(String16(packageName.c_str()), 0);
+    if (uid <= 0) {
+        return BAD_VALUE;
+    }
+    if (userId < 0) {
+        return BAD_VALUE;
+    }
+    uid = multiuser_get_uid(userId, uid);
+    return NO_ERROR;
+}
 
 bool mustAnonymizeBluetoothAddress(const AttributionSourceState& attributionSource,
                                    const String16& caller,
@@ -2133,6 +2148,59 @@ Status AudioPolicyService::removeUidDeviceAffinities(int32_t uidAidl) {
     }
     AutoCallerClear acc;
     return binderStatusFromStatusT(mAudioPolicyManager->removeUidDeviceAffinities(uid));
+}
+
+Status AudioPolicyService::setAppMuteForUid(int32_t uidAidl, bool muted) {
+    uid_t uid = VALUE_OR_RETURN_BINDER_STATUS(aidl2legacy_int32_t_uid_t(uidAidl));
+    audio_utils::lock_guard _l(mMutex);
+    if (!(audioserver_permissions() ?
+                  CHECK_PERM(MODIFY_AUDIO_ROUTING, IPCThreadState::self()->getCallingUid())
+                                : modifyAudioRoutingAllowed())) {
+        return binderStatusFromStatusT(PERMISSION_DENIED);
+    }
+    if (mAudioPolicyManager == nullptr) {
+        return binderStatusFromStatusT(NO_INIT);
+    }
+    AutoCallerClear acc;
+    return binderStatusFromStatusT(mAudioPolicyManager->setAppMute(uid, muted));
+}
+
+Status AudioPolicyService::isAppMutedForUid(int32_t uidAidl, bool* _aidl_return) {
+    uid_t uid = VALUE_OR_RETURN_BINDER_STATUS(aidl2legacy_int32_t_uid_t(uidAidl));
+    audio_utils::lock_guard _l(mMutex);
+    if (!(audioserver_permissions() ?
+                  CHECK_PERM(MODIFY_AUDIO_ROUTING, IPCThreadState::self()->getCallingUid())
+                                : modifyAudioRoutingAllowed())) {
+        return binderStatusFromStatusT(PERMISSION_DENIED);
+    }
+    if (mAudioPolicyManager == nullptr) {
+        return binderStatusFromStatusT(NO_INIT);
+    }
+    AutoCallerClear acc;
+    *_aidl_return = mAudioPolicyManager->isAppMuted(uid);
+    return binderStatusFromStatusT(NO_ERROR);
+}
+
+Status AudioPolicyService::setAppMuteForPackage(const std::string& packageName, int32_t userIdAidl,
+                                                bool muted) {
+    int userId = VALUE_OR_RETURN_BINDER_STATUS(convertReinterpret<int>(userIdAidl));
+    uid_t uid = 0;
+    status_t status = getUidForPackage(packageName, userId, uid);
+    if (status != NO_ERROR) {
+        return binderStatusFromStatusT(status);
+    }
+    return setAppMuteForUid(static_cast<int32_t>(uid), muted);
+}
+
+Status AudioPolicyService::isAppMutedForPackage(const std::string& packageName, int32_t userIdAidl,
+                                                bool* _aidl_return) {
+    int userId = VALUE_OR_RETURN_BINDER_STATUS(convertReinterpret<int>(userIdAidl));
+    uid_t uid = 0;
+    status_t status = getUidForPackage(packageName, userId, uid);
+    if (status != NO_ERROR) {
+        return binderStatusFromStatusT(status);
+    }
+    return isAppMutedForUid(static_cast<int32_t>(uid), _aidl_return);
 }
 
 Status AudioPolicyService::setUserIdDeviceAffinities(

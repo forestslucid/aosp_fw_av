@@ -4609,6 +4609,36 @@ TEST_F_WITH_FLAGS(
     EXPECT_EQ(NO_ERROR, mManager->stopOutput(mBitPerfectPortId));
 }
 
+TEST_F_WITH_FLAGS(
+        AudioPolicyManagerTestBitPerfect,
+        InternalMuteWhenAppIsMuted,
+        REQUIRES_FLAGS_ENABLED(
+                ACONFIG_FLAG(com::android::media::audioserver,
+                             fix_concurrent_playback_behavior_with_bit_perfect_client))
+) {
+    ASSERT_NO_FATAL_FAILURE(startBitPerfectOutput());
+    EXPECT_EQ(NO_ERROR, mManager->setAppMute(mUid, true));
+
+    const uint32_t anotherSampleRate = 44100;
+    audio_port_handle_t mediaPortId = AUDIO_PORT_HANDLE_NONE;
+    audio_io_handle_t mediaOutput = AUDIO_IO_HANDLE_NONE;
+    DeviceIdVector selectedDeviceIds;
+    bool isBitPerfect;
+    getOutputForAttr(&selectedDeviceIds, mBitPerfectFormat, mBitPerfectChannelMask,
+                     anotherSampleRate, AUDIO_OUTPUT_FLAG_NONE, &mediaOutput,
+                     &mediaPortId, sMediaAttr, AUDIO_SESSION_NONE, mUid, &isBitPerfect);
+    EXPECT_FALSE(isBitPerfect);
+    EXPECT_EQ(mBitPerfectOutput, mediaOutput);
+    EXPECT_EQ(NO_ERROR, mManager->startOutput(mediaPortId));
+    EXPECT_TRUE(mClient->getTrackInternalMute(mediaPortId));
+
+    EXPECT_EQ(NO_ERROR, mManager->setAppMute(mUid, false));
+    EXPECT_FALSE(mClient->getTrackInternalMute(mediaPortId));
+
+    EXPECT_EQ(NO_ERROR, mManager->stopOutput(mediaPortId));
+    EXPECT_EQ(NO_ERROR, mManager->stopOutput(mBitPerfectPortId));
+}
+
 class AudioPolicyManagerTestBitPerfectPhoneMode : public AudioPolicyManagerTestBitPerfectBase,
         public testing::WithParamInterface<audio_mode_t> {
 };

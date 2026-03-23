@@ -2365,6 +2365,22 @@ status_t AudioPolicyManager::startOutput(audio_port_handle_t portId)
     }
     sp<TrackClientDescriptor> client = outputDesc->getClient(portId);
 
+    if (isAppMuted(client->uid()) && client->setInternalMute(true)) {
+        auto result = legacy2aidl_audio_port_handle_t_int32_t(client->portId());
+        if (result.ok()) {
+            media::TrackInternalMuteInfo info;
+            info.portId = result.value();
+            info.muted = client->getInternalMute();
+            if (status_t status = mpClientInterface->setTracksInternalMute({info});
+                    status != NO_ERROR) {
+                ALOGE("%s, failed to update app mute for port id(%d), err=%d",
+                      __func__, client->portId(), status);
+            }
+        } else {
+            ALOGE("%s, failed to convert port id(%d) to aidl", __func__, client->portId());
+        }
+    }
+
     ALOGV("startOutput() output %d, stream %d, session %d",
           outputDesc->mIoHandle, client->stream(), client->session());
 
@@ -4861,6 +4877,49 @@ status_t AudioPolicyManager::setAllowedCapturePolicy(uid_t uid, audio_flags_mask
     return NO_ERROR;
 }
 
+status_t AudioPolicyManager::setAppMute(uid_t uid, bool muted) {
+    mMutedApps[uid] = muted;
+    std::vector<media::TrackInternalMuteInfo> clientsInternalMute;
+    for (size_t i = 0; i < mOutputs.size(); ++i) {
+        const auto& outputDesc = mOutputs.valueAt(i);
+        if (outputDesc->isBitPerfect() &&
+            com::android::media::audioserver::
+                    fix_concurrent_playback_behavior_with_bit_perfect_client()) {
+            updateClientsInternalMute(outputDesc);
+            continue;
+        }
+        for (const auto& client : outputDesc->getClientIterable()) {
+            if (client->uid() != uid) {
+                continue;
+            }
+            if (client->setInternalMute(muted)) {
+                auto result = legacy2aidl_audio_port_handle_t_int32_t(client->portId());
+                if (!result.ok()) {
+                    ALOGE("%s, failed to convert port id(%d) to aidl", __func__, client->portId());
+                    continue;
+                }
+                media::TrackInternalMuteInfo info;
+                info.portId = result.value();
+                info.muted = client->getInternalMute();
+                clientsInternalMute.push_back(std::move(info));
+            }
+        }
+    }
+    if (!clientsInternalMute.empty()) {
+        if (status_t status = mpClientInterface->setTracksInternalMute(clientsInternalMute);
+                status != NO_ERROR) {
+            ALOGE("%s, failed to update tracks internal mute, err=%d", __func__, status);
+            return status;
+        }
+    }
+    return NO_ERROR;
+}
+
+bool AudioPolicyManager::isAppMuted(uid_t uid) const {
+    auto it = mMutedApps.find(uid);
+    return it != mMutedApps.end() && it->second;
+}
+
 // This function checks for the parameters which can be offloaded.
 // This can be enhanced depending on the capability of the DSP and policy
 // of the system.
@@ -5979,6 +6038,7 @@ void AudioPolicyManager::releaseResourcesForUid(uid_t uid)
     clearAudioSources(uid);
     clearAudioPatches(uid);
     clearSessionRoutes(uid);
+    mMutedApps.erase(uid);
 }
 
 void AudioPolicyManager::clearAudioPatches(uid_t uid)
@@ -9471,9 +9531,10 @@ void AudioPolicyManager::updateClientsInternalMute(
     for (const sp<TrackClientDescriptor>& client : desc->getActiveClients()) {
         if ((client->flags() & AUDIO_OUTPUT_FLAG_BIT_PERFECT) != AUDIO_OUTPUT_FLAG_NONE) {
             bitPerfectClient = client;
+            bitPerfectClientInternalMute = isAppMuted(client->uid());
             continue;
         }
-        bool muted = false;
+        bool muted = isAppMuted(client->uid());
         if (client->stream() == AUDIO_STREAM_SYSTEM) {
             // System sound is muted.
             muted = true;
