@@ -218,6 +218,12 @@ public:
     binder::Status setUidDeviceAffinities(int32_t uid,
                                           const std::vector<AudioDevice>& devices) override;
     binder::Status removeUidDeviceAffinities(int32_t uid) override;
+    binder::Status setAppMuteForUid(int32_t uid, bool muted) override;
+    binder::Status isAppMutedForUid(int32_t uid, bool* _aidl_return) override;
+    binder::Status setAppMuteForPackage(const std::string& packageName, int32_t userId,
+                                        bool muted) override;
+    binder::Status isAppMutedForPackage(const std::string& packageName, int32_t userId,
+                                        bool* _aidl_return) override;
     binder::Status setUserIdDeviceAffinities(
             int32_t userId,
             const std::vector<AudioDevice>& devices) override;

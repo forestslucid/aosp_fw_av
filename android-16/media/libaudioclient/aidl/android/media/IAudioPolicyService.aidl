@@ -280,6 +280,14 @@ interface IAudioPolicyService {
 
     void removeUidDeviceAffinities(int /* uid_t */ uid);
 
+    void setAppMuteForUid(int /* uid_t */ uid, boolean muted);
+
+    boolean isAppMutedForUid(int /* uid_t */ uid);
+
+    void setAppMuteForPackage(String packageName, int userId, boolean muted);
+
+    boolean isAppMutedForPackage(String packageName, int userId);
+
     void setUserIdDeviceAffinities(int userId, in AudioDevice[] devices);
 
     void removeUserIdDeviceAffinities(int userId);
