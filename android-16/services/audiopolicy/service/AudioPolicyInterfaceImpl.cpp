@@ -103,9 +103,11 @@ constexpr auto PERMISSION_HARD_DENIED = permission::PermissionChecker::PERMISSIO
 constexpr auto PERMISSION_GRANTED = permission::PermissionChecker::PERMISSION_GRANTED;
 
 status_t getUidForPackage(const std::string& packageName, int userId, /*inout*/uid_t& uid) {
+    // getPackageUid() returns the appId for the package. We then remap with multiuser_get_uid()
+    // to form the per-user uid used by audio policy.
     PermissionController pc;
     uid = pc.getPackageUid(String16(packageName.c_str()), 0);
-    if (uid <= 0) {
+    if (uid < 0) {
         return BAD_VALUE;
     }
     if (userId < 0) {
@@ -2189,7 +2191,8 @@ Status AudioPolicyService::setAppMuteForPackage(const std::string& packageName, 
     if (status != NO_ERROR) {
         return binderStatusFromStatusT(status);
     }
-    return setAppMuteForUid(static_cast<int32_t>(uid), muted);
+    int32_t uidAidl = VALUE_OR_RETURN_BINDER_STATUS(legacy2aidl_uid_t_int32_t(uid));
+    return setAppMuteForUid(uidAidl, muted);
 }
 
 Status AudioPolicyService::isAppMutedForPackage(const std::string& packageName, int32_t userIdAidl,
@@ -2200,7 +2203,8 @@ Status AudioPolicyService::isAppMutedForPackage(const std::string& packageName, 
     if (status != NO_ERROR) {
         return binderStatusFromStatusT(status);
     }
-    return isAppMutedForUid(static_cast<int32_t>(uid), _aidl_return);
+    int32_t uidAidl = VALUE_OR_RETURN_BINDER_STATUS(legacy2aidl_uid_t_int32_t(uid));
+    return isAppMutedForUid(uidAidl, _aidl_return);
 }
 
 Status AudioPolicyService::setUserIdDeviceAffinities(
