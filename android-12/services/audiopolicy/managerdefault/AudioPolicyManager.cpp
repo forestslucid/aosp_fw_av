@@ -6140,7 +6140,9 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(const sp<AudioOutputDescr
         }
     }
 
-    // wait for the PCM output buffers to empty before proceeding with the rest of the command
+    // wait for the PCM output buffers to empty before proceeding with the rest of the command.
+    // When requiresLatencyWait is false, mute/unmute and patch operations still honor delayMs but
+    // this call does not block: draining is handled by delayed command scheduling in audio server.
     if (requiresLatencyWait && muteWaitMs > delayMs) {
         muteWaitMs -= delayMs;
         usleep(muteWaitMs * 1000);
