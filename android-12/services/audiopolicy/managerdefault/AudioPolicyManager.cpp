@@ -2019,6 +2019,7 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
             // still contain data that needs to be drained. The latency only covers the audio HAL
             // and kernel buffers. Also the latency does not always include additional delay in the
             // audio path (audio DSP, CODEC ...)
+            // Keep delay for mute/unmute and patch scheduling while avoiding local blocking wait.
             setOutputDevices(outputDesc, newDevices, false, outputDesc->latency()*2,
                     nullptr /*patchHandle*/, true /*requiresMuteCheck*/,
                     false /*requiresLatencyWait*/);
@@ -2035,6 +2036,7 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
                     DeviceVector newDevices2 = getNewOutputDevices(desc, false /*fromCache*/);
                     bool force = desc->devices() != newDevices2;
 
+                    // Keep delay for mute/unmute and patch scheduling while avoiding local wait.
                     setOutputDevices(desc, newDevices2, force, delayMs,
                             nullptr /*patchHandle*/, true /*requiresMuteCheck*/,
                             false /*requiresLatencyWait*/);
