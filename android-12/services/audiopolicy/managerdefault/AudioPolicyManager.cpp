@@ -2019,7 +2019,9 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
             // still contain data that needs to be drained. The latency only covers the audio HAL
             // and kernel buffers. Also the latency does not always include additional delay in the
             // audio path (audio DSP, CODEC ...)
-            setOutputDevices(outputDesc, newDevices, false, outputDesc->latency()*2);
+            setOutputDevices(outputDesc, newDevices, false, outputDesc->latency()*2,
+                    nullptr /*patchHandle*/, true /*requiresMuteCheck*/,
+                    false /*requiresLatencyWait*/);
 
             // force restoring the device selection on other active outputs if it differs from the
             // one being selected for this output
@@ -2033,7 +2035,9 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
                     DeviceVector newDevices2 = getNewOutputDevices(desc, false /*fromCache*/);
                     bool force = desc->devices() != newDevices2;
 
-                    setOutputDevices(desc, newDevices2, force, delayMs);
+                    setOutputDevices(desc, newDevices2, force, delayMs,
+                            nullptr /*patchHandle*/, true /*requiresMuteCheck*/,
+                            false /*requiresLatencyWait*/);
 
                     // re-apply device specific volume if not done by setOutputDevice()
                     if (!force) {
@@ -6060,7 +6064,8 @@ void AudioPolicyManager::updateDevicesAndOutputs()
 
 uint32_t AudioPolicyManager::checkDeviceMuteStrategies(const sp<AudioOutputDescriptor>& outputDesc,
                                                        const DeviceVector &prevDevices,
-                                                       uint32_t delayMs)
+                                                       uint32_t delayMs,
+                                                       bool requiresLatencyWait)
 {
     // mute/unmute strategies using an incompatible device combination
     // if muting, wait for the audio in pcm buffer to be drained before proceeding
@@ -6134,7 +6139,7 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(const sp<AudioOutputDescr
     }
 
     // wait for the PCM output buffers to empty before proceeding with the rest of the command
-    if (muteWaitMs > delayMs) {
+    if (requiresLatencyWait && muteWaitMs > delayMs) {
         muteWaitMs -= delayMs;
         usleep(muteWaitMs * 1000);
         return muteWaitMs;
@@ -6147,16 +6152,17 @@ uint32_t AudioPolicyManager::setOutputDevices(const sp<SwAudioOutputDescriptor>&
                                               bool force,
                                               int delayMs,
                                               audio_patch_handle_t *patchHandle,
-                                              bool requiresMuteCheck)
+                                              bool requiresMuteCheck,
+                                              bool requiresLatencyWait)
 {
     ALOGV("%s device %s delayMs %d", __func__, devices.toString().c_str(), delayMs);
     uint32_t muteWaitMs;
 
     if (outputDesc->isDuplicated()) {
         muteWaitMs = setOutputDevices(outputDesc->subOutput1(), devices, force, delayMs,
-                nullptr /* patchHandle */, requiresMuteCheck);
+                nullptr /* patchHandle */, requiresMuteCheck, requiresLatencyWait);
         muteWaitMs += setOutputDevices(outputDesc->subOutput2(), devices, force, delayMs,
-                nullptr /* patchHandle */, requiresMuteCheck);
+                nullptr /* patchHandle */, requiresMuteCheck, requiresLatencyWait);
         return muteWaitMs;
     }
 
@@ -6172,7 +6178,8 @@ uint32_t AudioPolicyManager::setOutputDevices(const sp<SwAudioOutputDescriptor>&
 
     // if the outputs are not materially active, there is no need to mute.
     if (requiresMuteCheck) {
-        muteWaitMs = checkDeviceMuteStrategies(outputDesc, prevDevices, delayMs);
+        muteWaitMs = checkDeviceMuteStrategies(outputDesc, prevDevices, delayMs,
+                                               requiresLatencyWait);
     } else {
         ALOGV("%s: suppressing checkDeviceMuteStrategies", __func__);
         muteWaitMs = 0;

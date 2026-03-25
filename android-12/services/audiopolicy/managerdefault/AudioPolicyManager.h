@@ -460,7 +460,8 @@ protected:
                                   bool force = false,
                                   int delayMs = 0,
                                   audio_patch_handle_t *patchHandle = NULL,
-                                  bool requiresMuteCheck = true);
+                                  bool requiresMuteCheck = true,
+                                  bool requiresLatencyWait = true);
         status_t resetOutputDevice(const sp<AudioOutputDescriptor>& outputDesc,
                                    int delayMs = 0,
                                    audio_patch_handle_t *patchHandle = NULL);
@@ -659,7 +660,8 @@ protected:
          */
         virtual uint32_t checkDeviceMuteStrategies(const sp<AudioOutputDescriptor>& outputDesc,
                                                    const DeviceVector &prevDevices,
-                                                   uint32_t delayMs);
+                                                   uint32_t delayMs,
+                                                   bool requiresLatencyWait = true);
 
         audio_io_handle_t selectOutput(const SortedVector<audio_io_handle_t>& outputs,
                                        audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
